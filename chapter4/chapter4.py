@@ -11,7 +11,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import binom, norm 
 from scipy.optimize import minimize
-from fpdf import FPDF
 
 
 # find the current path
