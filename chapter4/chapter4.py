@@ -148,5 +148,3 @@ def fit_params_MLE():
 if __name__ == '__main__':
 
     fit_params_MLE()
-
-    
