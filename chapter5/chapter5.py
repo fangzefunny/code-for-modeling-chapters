@@ -164,7 +164,6 @@ def fit_hier( N=1000, pShort=.3, gen_pars=[ [100,10], [150, 20]],
     plt.ylabel( 'Density')
     plt.savefig( f'{path}/fig2-Fitted distribution.png', dpi=dpi)
 
- 
 if __name__ == '__main__':
 
     ## fit data with flat structure 
