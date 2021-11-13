@@ -145,7 +145,6 @@ def fit_params_MLE():
     w[3] = ( 1 - np.sum(w[:3]))
     print( w)
 
-
 if __name__ == '__main__':
 
     fit_params_MLE()
