@@ -22,6 +22,10 @@ warnings.simplefilter( 'ignore',FutureWarning)
 
 # find the current path
 path = os.path.dirname(os.path.abspath(__file__))
+os.environ["XLA_FLAGS"] = (
+    "--xla_force_host_platform_device_count=4 "
+    "--xla_cpu_multi_thread_eigen=false "
+)
 
 # define some color 
 Blue    = .85 * np.array([   9, 132, 227]) / 255
@@ -102,6 +106,9 @@ def plot_samples(samples):
         ax.set_xlabel( 'Iterations', fontsize=14)
         ax = axs[ i, 1]
         sns.kdeplot( samples[key], ax=ax, color=Blue*.9, linewidth=lw)
+        ax.axvline( np.mean( samples[key]), color='gray', lw=1.5)
+        ax.axvline( np.quantile( samples[key], .05), ls='--', color='gray')
+        ax.axvline( np.quantile( samples[key], .95), ls='--', color='gray')
         ax.set_ylabel( 'Density', fontsize=14)
         ax.set_title( f'Density of {key}', fontsize=16)
     plt.tight_layout()
@@ -144,7 +151,6 @@ def SD_sampler( model, model_name):
     rng_key = random.PRNGKey(1234)
     
     ## Sampling 
-    npyro.set_host_device_count(4)
     kernel = NUTS( model)
     posterior = MCMC( kernel, num_chains=4, num_samples=5000, num_warmup=100000)
     posterior.run( rng_key, h_obs, f_obs, sigtrials, noistrials)
@@ -161,7 +167,7 @@ if __name__ == '__main__':
     # plt.savefig( f'{path}/Fig1_illustration_of_Gibbs_sampling', dpi=dpi)
 
     ## Gibbs using pyro 
-    #pyro_sampler( mymodel, 'simple')
+    pyro_sampler( mymodel, 'simple')
 
     ## MCMC using pyro for Bayesian signal-detection model 
     SD_sampler( SD_model, 'SDmodel')
