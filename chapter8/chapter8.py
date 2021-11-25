@@ -5,10 +5,8 @@ Chapter 8: Bayesian Parameter Estimation
 
 '''
 import os
-from typing import no_type_check
 import numpy as np
 import numpyro as npyro
-from numpyro.diagnostics import gelman_rubin
 import numpyro.distributions as dist
 import matplotlib.pyplot as plt 
 import seaborn as sns 
@@ -88,14 +86,6 @@ def gibbs_mvGauss( n_samples=1000, seed=2021):
     ax.set_xlim( [ -3, 3])
     ax.set_ylim( [ -3, 3])
 
-def mymodel( obs):
-    # priors: μ ~ Uni( -100, 100), σ ~ Uniform( 0, 100) 
-    mu  = npyro.sample( 'mu', dist.Uniform( -100, 100))
-    sig = npyro.sample( 'sig', dist.Uniform( 0, 100))
-    tau = npyro.deterministic( 'tau', sig**(-2))
-    # sample xx ~ N( μ, τ)
-    npyro.sample( 'x', dist.Normal( mu, tau), obs=obs)
-
 def plot_samples(samples):
     lw = 4
     n_params = len( samples.keys())
@@ -117,8 +107,7 @@ def plot_samples(samples):
 def pyro_sampler( model, model_name):
 
     ## Get obs
-    N = 1000
-    x = norm( loc=0, scale=2).rvs( N)
+   
     rng_key = random.PRNGKey(1234)
     
     ## Sampling 
@@ -130,7 +119,29 @@ def pyro_sampler( model, model_name):
     plot_samples(samples)
     plt.savefig( f'{path}/params_sumamry-{model_name}.png')
 
-def SD_model( h_obs, f_obs, sigtrials, noistrials,):
+'''
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%       Simple Pyro Example      %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+'''
+
+def mymodel( obs):
+    # priors: μ ~ Uni( -100, 100), σ ~ Uniform( 0, 100) 
+    mu  = npyro.sample( 'mu', dist.Uniform( -100, 100))
+    sig = npyro.sample( 'sig', dist.Uniform( 0, 100))
+    tau = npyro.deterministic( 'tau', sig**(-2))
+    # sample xx ~ N( μ, τ)
+    xx = npyro.sample( 'x', dist.Normal( mu, tau), obs=obs)
+
+'''
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%     Signal Detection Model     %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+'''
+
+def SD_model( obs, sigtrials=100, noistrials=100):
+    # unpack obs
+    h_obs, f_obs = obs 
     # prior d ~ N(1,1), b~N(0,1)
     d = npyro.sample( 'discrim', dist.Normal( 1, 1))
     b = npyro.sample( 'bias', dist.Normal( 0, 1))
@@ -143,22 +154,47 @@ def SD_model( h_obs, f_obs, sigtrials, noistrials,):
     hit = npyro.sample( 'hit', dist.Binomial( sigtrials, phi_hit), obs=h_obs)
     false = npyro.sample( 'false', dist.Binomial( noistrials, phi_false), obs=f_obs)
 
-def SD_sampler( model, model_name):
+'''
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%     Multinominal Tree Models    %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+'''
 
-    ## Get obs
-    h_obs, f_obs = 60, 11
-    sigtrials = noistrials = 100
-    rng_key = random.PRNGKey(1234)
-    
+def MTM( obs, sigtrials=100, noistrials=100):
+
+    # upack observations
+    hit_obs, fal_obs = obs 
+    # θ1~beta(1,1), θ2~beta(1,1) 
+    theta1 = npyro.sample( 'theta1', dist.Beta( 1, 1))
+    theta2 = npyro.sample( 'theta2', dist.Beta( 1, 1))
+    # p(h) = θ1 + (1-θ1)θ2, p(f) = θ2
+    predh = npyro.deterministic( 'p(h)', 
+                theta1 + ( 1 - theta1) * theta2)
+    predf = npyro.deterministic( 'p(f)', theta2)
+    # Nh ~ Binomial( p(h), N), Nf ~ Binomial( p(f), N)
+    hit = npyro.sample( 'hit', dist.Binomial( sigtrials, predh),
+                        obs=hit_obs)
+    fal = npyro.sample( 'false', dist.Binomial( noistrials, predf),
+                        obs=fal_obs)
+
+def pyro_sampling( obs, model, model_name, seed=1234,
+                 n_chains=4, n_samples=5000, n_warmup=10000):
+
+    ## Fix the random seed
+    rng_key = random.PRNGKey(seed)
+
     ## Sampling 
     kernel = NUTS( model)
-    posterior = MCMC( kernel, num_chains=4, num_samples=5000, num_warmup=100000)
-    posterior.run( rng_key, h_obs, f_obs, sigtrials, noistrials)
-    print( posterior.print_summary())
+    posterior = MCMC( kernel, num_chains=n_chains, 
+                              num_samples=n_samples, 
+                              num_warmup=n_warmup,)
+    posterior.run( rng_key, obs)
     samples = posterior.get_samples()
+    
+    ## Summarize the sampling results
+    print( posterior.print_summary())
     plot_samples( samples)
     plt.savefig( f'{path}/params_sumamry-{model_name}.png')
-
 
 if __name__ == '__main__':
 
@@ -167,8 +203,15 @@ if __name__ == '__main__':
     # plt.savefig( f'{path}/Fig1_illustration_of_Gibbs_sampling', dpi=dpi)
 
     ## Gibbs using pyro 
-    pyro_sampler( mymodel, 'simple')
+    N = 1000
+    obs = norm( loc=0, scale=2).rvs( N)
+    pyro_sampling( obs, mymodel, 'simple', n_chains=1, n_warmup=2000)
 
     ## MCMC using pyro for Bayesian signal-detection model 
-    SD_sampler( SD_model, 'SDmodel')
+    obs = ( 60, 11)
+    pyro_sampling( obs, SD_model, 'SDmodel')
+
+    ## MCMC using pyro for multinomaila tree model  
+    obs = ( 60, 11)
+    pyro_sampling( obs, MTM, 'MTmodel')
 
