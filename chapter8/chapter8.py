@@ -86,6 +86,10 @@ def gibbs_mvGauss( n_samples=1000, seed=2021):
     ax.set_xlim( [ -3, 3])
     ax.set_ylim( [ -3, 3])
 
+#================================
+#       Basic Functions      
+#================================
+
 def plot_samples(samples):
     lw = 4
     n_params = len( samples.keys())
@@ -178,9 +182,9 @@ def MTM( obs, sigtrials=100, noistrials=100):
 
 if __name__ == '__main__':
 
-    ## Hand Gibbs
-    # gibbs_mvGauss()
-    # plt.savefig( f'{path}/Fig1_illustration_of_Gibbs_sampling', dpi=dpi)
+    # Hand Gibbs
+    gibbs_mvGauss()
+    plt.savefig( f'{path}/Fig1_illustration_of_Gibbs_sampling', dpi=dpi)
 
     ## Gibbs using pyro 
     N = 1000
