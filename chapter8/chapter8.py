@@ -37,11 +37,9 @@ sns.set_style("whitegrid", {'axes.grid' : False})
 # image dpi
 dpi = 250
 
-'''
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%       Simple Gibbs Sampler      %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-'''
+#===================================
+#       Simple Gibbs Sampler      
+#===================================
 
 def gibbs_mvGauss( n_samples=1000, seed=2021):
     
@@ -124,11 +122,9 @@ def pyro_sampling( obs, model, model_name, seed=1234,
     plot_samples( samples)
     plt.savefig( f'{path}/params_sumamry-{model_name}.png')
 
-'''
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%       Simple Pyro Example      %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-'''
+#===================================
+#       Simple numpyro exmaple      
+#===================================
 
 def mymodel( obs):
     # priors: μ ~ Uni( -100, 100), σ ~ Uniform( 0, 100) 
@@ -138,11 +134,9 @@ def mymodel( obs):
     # sample xx ~ N( μ, τ)
     xx = npyro.sample( 'x', dist.Normal( mu, tau), obs=obs)
 
-'''
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%     Signal Detection Model     %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-'''
+#===================================
+#       Signal detection model      
+#===================================
 
 def SD_model( obs, sigtrials=100, noistrials=100):
     # unpack obs
@@ -159,11 +153,9 @@ def SD_model( obs, sigtrials=100, noistrials=100):
     hit = npyro.sample( 'hit', dist.Binomial( sigtrials, phi_hit), obs=h_obs)
     false = npyro.sample( 'false', dist.Binomial( noistrials, phi_false), obs=f_obs)
 
-'''
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%     Multinominal Tree Models    %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-'''
+#=====================================
+#       Multinomial tree model       
+#=====================================
 
 def MTM( obs, sigtrials=100, noistrials=100):
 
