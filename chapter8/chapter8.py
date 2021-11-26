@@ -38,7 +38,9 @@ sns.set_style("whitegrid", {'axes.grid' : False})
 dpi = 250
 
 '''
-Section 8.1 Simple Gibbs Sampler
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%       Simple Gibbs Sampler      %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 '''
 
 def gibbs_mvGauss( n_samples=1000, seed=2021):
@@ -103,20 +105,23 @@ def plot_samples(samples):
         ax.set_title( f'Density of {key}', fontsize=16)
     plt.tight_layout()
 
-    
-def pyro_sampler( model, model_name):
+def pyro_sampling( obs, model, model_name, seed=1234,
+                 n_chains=4, n_samples=5000, n_warmup=10000):
 
-    ## Get obs
-   
-    rng_key = random.PRNGKey(1234)
-    
+    ## Fix the random seed
+    rng_key = random.PRNGKey(seed)
+
     ## Sampling 
     kernel = NUTS( model)
-    posterior = MCMC( kernel, num_samples=5000, num_warmup=10000)
-    posterior.run( rng_key, x)
-    print( posterior.print_summary())
+    posterior = MCMC( kernel, num_chains=n_chains, 
+                              num_samples=n_samples, 
+                              num_warmup=n_warmup,)
+    posterior.run( rng_key, obs)
     samples = posterior.get_samples()
-    plot_samples(samples)
+    
+    ## Summarize the sampling results
+    print( posterior.print_summary())
+    plot_samples( samples)
     plt.savefig( f'{path}/params_sumamry-{model_name}.png')
 
 '''
@@ -177,24 +182,7 @@ def MTM( obs, sigtrials=100, noistrials=100):
     fal = npyro.sample( 'false', dist.Binomial( noistrials, predf),
                         obs=fal_obs)
 
-def pyro_sampling( obs, model, model_name, seed=1234,
-                 n_chains=4, n_samples=5000, n_warmup=10000):
 
-    ## Fix the random seed
-    rng_key = random.PRNGKey(seed)
-
-    ## Sampling 
-    kernel = NUTS( model)
-    posterior = MCMC( kernel, num_chains=n_chains, 
-                              num_samples=n_samples, 
-                              num_warmup=n_warmup,)
-    posterior.run( rng_key, obs)
-    samples = posterior.get_samples()
-    
-    ## Summarize the sampling results
-    print( posterior.print_summary())
-    plot_samples( samples)
-    plt.savefig( f'{path}/params_sumamry-{model_name}.png')
 
 if __name__ == '__main__':
 
