@@ -3,6 +3,8 @@ Chapter 8: Bayesian Parameter Estimation
 
     @Zeming 
 
+Note: Jax does not support windows, run the code
+on a mac, linux, or virtual linux on windows.
 '''
 import os
 import numpy as np

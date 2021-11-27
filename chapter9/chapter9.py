@@ -3,13 +3,13 @@ Chapter 9: Bayesian Parameter Estimation
 
     @Zeming 
 
+Note: due to unknown reason, numpyro does not 
+converge on this inference. An issue has been 
+created in the numpyro github  for solutions.
 '''
 import os
-from typing import no_type_check
 import numpy as np
 import pandas as pd 
-import pyro
-import torch 
 import numpyro as npyro
 import numpyro.distributions as dist
 import arviz as az
@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns 
 
 from jax import random 
+import jax.numpy as jnp
 from scipy.stats import norm, binom 
 from numpyro.infer import MCMC, NUTS, Predictive
 
@@ -73,8 +74,8 @@ def plot_samples(samples):
         ax.set_title( f'Density of {key}', fontsize=16)
     plt.tight_layout()
 
-def pyro_sampling( obs, model, model_name, seed=1234,
-                 n_chains=4, n_samples=5000, n_warmup=10000):
+def pyro_sampling( obs, model, model_name, seed=0,
+                 n_chains=1, n_samples=10000, n_warmup=30000):
 
     ## Fix the random seed
     rng_key = random.PRNGKey(seed)
@@ -90,15 +91,29 @@ def pyro_sampling( obs, model, model_name, seed=1234,
     ## Summarize the sampling results
     print( posterior.print_summary())
     az.plot_trace( az.from_numpyro( posterior), compact=True)
+    plt.tight_layout()
     plt.savefig( f'{path}/{model_name}-params sumamry.png', dpi=dpi)
 
     return samples
 
-'''
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%     Hierarchical Signal Detection Model     %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-'''
+#==============================================
+#     Hierarchical Signal Detection Model    
+#==============================================
+
+def sim_hSDM():
+
+    ## Prepare the data 
+    obs = dict()
+    obs[ 'n_subj'] = 10
+    obs[ 'sigtrials'] = obs['noistrials'] = 100
+    obs[ 'h_obs'] = binom( n=obs[ 'sigtrials'], p=.8).rvs( 10)
+    obs[ 'f_obs'] = binom( n=obs['noistrials'], p=.2).rvs( 10)
+
+    ## Sample to get the results
+    posterior = pyro_sampling( obs, hSDM, 'hSDM')
+
+    ## Show performance
+    show_hit_false( obs, posterior)
 
 def hSDM( obs, eps=.001):
 
@@ -127,12 +142,10 @@ def hSDM( obs, eps=.001):
                     'p_false', dist.Normal( 0, 1).cdf( -d/2-b))
 
         # observed hit ~ Bern(sig; p(h)); false ~ Bern( noise; p(f))
-        h = npyro.sample( 'h_times', dist.Binomial( obs[ 'sigtrials'], phi_hit), 
+        npyro.sample( 'h_times', dist.Binomial( obs[ 'sigtrials'], phi_hit), 
                         obs=obs[ 'h_obs'])
-        f = npyro.sample( 'f_times', dist.Binomial( obs['noistrials'], phi_false), 
+        npyro.sample( 'f_times', dist.Binomial( obs['noistrials'], phi_false), 
                         obs=obs[ 'f_obs'])
-        return h, f
-
 
 def show_hit_false( obs, samples, seed=1234):
 
@@ -173,57 +186,71 @@ def show_hit_false( obs, samples, seed=1234):
     plt.tight_layout()
     plt.savefig( f'{path}/hSDM-goodness of fit.png', dpi=dpi)
 
-'''
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%     Hierarchical Modeling of Forgetting     %%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-'''
+#================================================
+#     Hierarchical Modeling of Forgetting     
+#================================================
 
-def HMF( obs, eps=.001):
+def sim_hMF( seed=1234):
+
+    ## Generate data
+    rng = np.random.RandomState( seed)
+    tlags = [ 0, 1, 5, 10, 20, 50]
+    n_subj, T, n_items = 4, len(tlags), 20
+    recalls = np.zeros( [ n_subj, T]) + np.nan 
+    for sub_i in range(n_subj):
+        a = .2*rng.rand()
+        b = .1*rng.rand() + .9
+        alpha = .3*rng.rand() + .1
+        print( f'Sub {sub_i}: a={a:.2f}, b={b:.2f}, alpha={alpha:.2f}')
+        for j, t in enumerate(tlags):
+            p = a + (1-a) * b * np.exp(-alpha*t)
+            recalls[ sub_i, j] = binom( n=n_items, p=p).rvs()
+    obs = { 'n_subj': n_subj, 'n_items': 20, 'T': T,
+            'recalls': recalls}
+
+    ## Sample to estimate
+    posterior = pyro_sampling( obs, hMF, 'hMF', n_samples=5000, n_warmup=10000)
+
+    ## 
+
+def hMF( obs, eps=.001):
 
     ## Populational level distributions
     mu_alpha  = npyro.sample( 'mu_alpha', dist.Uniform( 0, 1))
     tau_alpha = npyro.sample( 'tau_alpha', dist.Gamma( eps, eps))
     mu_a      = npyro.sample( 'mu_a', dist.Uniform( 0, 1))
-    tau_a     = npyro.sample( 'tau_b', dist.Gamma( eps, eps))
+    tau_a     = npyro.sample( 'tau_a', dist.Gamma( eps, eps))
     mu_b      = npyro.sample( 'mu_b', dist.Uniform( 0, 1))
     tau_b     = npyro.sample( 'tau_b', dist.Gamma( eps, eps))
 
     ## Individual distributions
-    with npyro.plate( 'plate_i', obs[ 'n_subj']):
-        alpha = npyro.sample( 'alpha', np.clip( 
-            dist.Normal( mu_alpha, tau_alpha), 0, 1))
-        a = npyro.sample( 'a', np.clip( 
-            dist.Normal( mu_a, tau_a), 0, 1))
-        b = npyro.sample( 'b', np.clip( 
-            dist.Normal( mu_b, tau_b), 0, 1)) 
+    alpha = npyro.sample( 'alpha', dist.TruncatedDistribution(
+                    dist.Normal( jnp.broadcast_to( mu_alpha, [obs['n_subj'], 1]), 
+                    tau_alpha), low=0, high=1))
+    a     = npyro.sample( 'a', dist.TruncatedDistribution( 
+                    dist.Normal( jnp.broadcast_to( mu_a, [obs['n_subj'], 1]), 
+                    tau_a), low=0, high=1))
+    b     = npyro.sample( 'b', dist.TruncatedDistribution( 
+                    dist.Normal( jnp.broadcast_to( mu_b, [obs['n_subj'], 1]), 
+                    tau_b), low=0, high=1))
 
-        def trans_fn( t, t_obs):
-            theta = npyro.deterministic( 'theta',
-                a + ( 1- a) * b * np.exp( -alpha * t))
-            np.pyro.sample( 'k', dist.Binomial( theta, obs['n_items']),
-                        obs=t_obs)
-            return t+1, None
-
-        with npyro.plate( 'plate_j', obs[ 'T']):
-            pass 
-            
-
+    ## Each time steps
+    sub_id = np.arange( obs['n_subj'])
+    t_lags = np.arange( obs['T']).reshape([1,-1])
+    theta = npyro.deterministic( 'theta', a[sub_id] + (1 - a[sub_id]
+                ) * b[sub_id] * jnp.exp(-alpha[sub_id] * t_lags))
+    
+    return npyro.sample( 'recall', dist.Binomial( total_count=obs['n_items'], 
+                            probs=theta), obs=obs['recalls'])
 
 
 if __name__ == '__main__':
 
-    ## Hand Gibbs
-    # gibbs_mvGauss()
-    # plt.savefig( f'{path}/Fig1_illustration_of_Gibbs_sampling', dpi=dpi)
+    # ## Hierarchical signal-detection model
+    # sim_hSDM()
 
-    ## Gibbs using pyro 
-    obs = dict()
-    obs[ 'n_subj'] = 10
-    obs[ 'sigtrials'] = obs['noistrials'] = 100
-    obs[ 'h_obs'] = binom( n=obs[ 'sigtrials'], p=.8).rvs( 10)
-    obs[ 'f_obs'] = binom( n=obs['noistrials'], p=.2).rvs( 10)
-    posterior = pyro_sampling( obs, hSDM, 'hSDM')
-    show_hit_false( obs, posterior)
+
+    ## Hierarchical modeling of forgetting
+    sim_hMF()
 
 
