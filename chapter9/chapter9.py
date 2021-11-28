@@ -247,8 +247,8 @@ def hMF( args, obs=None, eps=5):
 
 if __name__ == '__main__':
 
-    # ## Hierarchical signal-detection model
-    # sim_hSDM()
+    ## Hierarchical signal-detection model
+    sim_hSDM()
 
 
     ## Hierarchical modeling of forgetting
