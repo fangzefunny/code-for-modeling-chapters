@@ -3,9 +3,9 @@ Chapter 9: Bayesian Parameter Estimation
 
     @Zeming 
 
-Note: due to unknown reason, numpyro does not 
-converge on this inference. An issue has been 
-created in the numpyro github  for solutions.
+Note: due the implementation of gamma distribution, 
+numpyro does not converge on this inference. 
+An issue has been created in the numpyro github for solutions.
 '''
 import os
 import numpy as np
@@ -74,7 +74,7 @@ def plot_samples(samples):
         ax.set_title( f'Density of {key}', fontsize=16)
     plt.tight_layout()
 
-def pyro_sampling( obs, model, model_name, seed=0,
+def pyro_sampling( args, obs, model, model_name, seed=0,
                  n_chains=1, n_samples=10000, n_warmup=30000):
 
     ## Fix the random seed
@@ -85,7 +85,7 @@ def pyro_sampling( obs, model, model_name, seed=0,
     posterior = MCMC( kernel, num_chains=n_chains, 
                               num_samples=n_samples, 
                               num_warmup=n_warmup,)
-    posterior.run( rng_key, obs)
+    posterior.run( rng_key, args, obs)
     samples = posterior.get_samples()
     
     ## Summarize the sampling results
@@ -103,19 +103,23 @@ def pyro_sampling( obs, model, model_name, seed=0,
 def sim_hSDM():
 
     ## Prepare the data 
-    obs = dict()
-    obs[ 'n_subj'] = 10
-    obs[ 'sigtrials'] = obs['noistrials'] = 100
-    obs[ 'h_obs'] = binom( n=obs[ 'sigtrials'], p=.8).rvs( 10)
-    obs[ 'f_obs'] = binom( n=obs['noistrials'], p=.2).rvs( 10)
+    args = dict()
+    args[ 'n_subj'] = 10
+    args[ 'sigtrials'] = args['noistrials'] = 100
+    h_obs = binom( n=args[ 'sigtrials'], p=.8).rvs( 10)
+    f_obs= binom( n=args['noistrials'], p=.2).rvs( 10)
 
     ## Sample to get the results
-    posterior = pyro_sampling( obs, hSDM, 'hSDM')
+    posterior = pyro_sampling( args, ( h_obs, f_obs), hSDM, 'hSDM')
 
     ## Show performance
-    show_hit_false( obs, posterior)
 
-def hSDM( obs, eps=.001):
+def hSDM( args, obs=None, eps=.001):
+
+    if obs:
+        h_obs, f_obs = obs[0], obs[1]
+    else:
+        h_obs, f_obs = None, None 
 
     ## Population level distributions
     # μd ~ N( 0, eps), μb ~ N( 0, eps), 
@@ -126,7 +130,7 @@ def hSDM( obs, eps=.001):
     taub = npyro.sample( 'τ_b', dist.Gamma( eps, eps))
 
     ## Individual level 
-    with npyro.plate( 'plate_i', obs[ 'n_subj']):
+    with npyro.plate( 'plate_i', args[ 'n_subj']):
 
         # split data 
         #hi_obs, fi_obs = obs[ 'h_obs'][ ind], obs[ 'f_obs'][ind]
@@ -138,14 +142,14 @@ def hSDM( obs, eps=.001):
         # area under curves p(h) = Φ( d/2-b), p(f) = Φ( -d/2-b)
         phi_hit = npyro.deterministic( 
                     'p_hit', dist.Normal( 0, 1).cdf( d/2-b))
-        phi_false = npyro.deterministic( 
-                    'p_false', dist.Normal( 0, 1).cdf( -d/2-b))
+        phi_fal = npyro.deterministic( 
+                    'p_fal', dist.Normal( 0, 1).cdf( -d/2-b))
 
         # observed hit ~ Bern(sig; p(h)); false ~ Bern( noise; p(f))
-        npyro.sample( 'h_times', dist.Binomial( obs[ 'sigtrials'], phi_hit), 
-                        obs=obs[ 'h_obs'])
-        npyro.sample( 'f_times', dist.Binomial( obs['noistrials'], phi_false), 
-                        obs=obs[ 'f_obs'])
+        npyro.sample( 'h_times', dist.Binomial( args[ 'sigtrials'], probs=phi_hit), 
+                        obs=h_obs)
+        npyro.sample( 'f_times', dist.Binomial( args['noistrials'], probs=phi_fal), 
+                        obs=f_obs)
 
 def show_hit_false( obs, samples, seed=1234):
 
@@ -205,44 +209,41 @@ def sim_hMF( seed=1234):
         for j, t in enumerate(tlags):
             p = a + (1-a) * b * np.exp(-alpha*t)
             recalls[ sub_i, j] = binom( n=n_items, p=p).rvs()
-    obs = { 'n_subj': n_subj, 'n_items': 20, 'T': T,
-            'recalls': recalls}
+    args = { 'n_subj': n_subj, 'n_items': 20, 'T': T}
 
     ## Sample to estimate
-    posterior = pyro_sampling( obs, hMF, 'hMF', n_samples=5000, n_warmup=10000)
+    posterior = pyro_sampling( args, recalls, hMF, 'hMF', n_samples=5000, n_warmup=20000)
 
-    ## 
 
-def hMF( obs, eps=.001):
+def hMF( args, obs=None, eps=5):
 
     ## Populational level distributions
     mu_alpha  = npyro.sample( 'mu_alpha', dist.Uniform( 0, 1))
-    tau_alpha = npyro.sample( 'tau_alpha', dist.Gamma( eps, eps))
+    tau_alpha = npyro.sample( 'tau_alpha', dist.Uniform( 0, eps))
     mu_a      = npyro.sample( 'mu_a', dist.Uniform( 0, 1))
-    tau_a     = npyro.sample( 'tau_a', dist.Gamma( eps, eps))
+    tau_a     = npyro.sample( 'tau_a', dist.Uniform( 0, eps))
     mu_b      = npyro.sample( 'mu_b', dist.Uniform( 0, 1))
-    tau_b     = npyro.sample( 'tau_b', dist.Gamma( eps, eps))
+    tau_b     = npyro.sample( 'tau_b', dist.Uniform( 0, eps))
 
     ## Individual distributions
     alpha = npyro.sample( 'alpha', dist.TruncatedDistribution(
-                    dist.Normal( jnp.broadcast_to( mu_alpha, [obs['n_subj'], 1]), 
+                    dist.Normal( jnp.broadcast_to( mu_alpha, [ args['n_subj'], 1]), 
                     tau_alpha), low=0, high=1))
     a     = npyro.sample( 'a', dist.TruncatedDistribution( 
-                    dist.Normal( jnp.broadcast_to( mu_a, [obs['n_subj'], 1]), 
+                    dist.Normal( jnp.broadcast_to( mu_a, [ args['n_subj'], 1]), 
                     tau_a), low=0, high=1))
     b     = npyro.sample( 'b', dist.TruncatedDistribution( 
-                    dist.Normal( jnp.broadcast_to( mu_b, [obs['n_subj'], 1]), 
+                    dist.Normal( jnp.broadcast_to( mu_b, [ args['n_subj'], 1]), 
                     tau_b), low=0, high=1))
 
     ## Each time steps
-    sub_id = np.arange( obs['n_subj'])
-    t_lags = np.arange( obs['T']).reshape([1,-1])
+    sub_id = np.arange( args['n_subj'])
+    t_lags = np.arange( args['T']).reshape([1,-1])
     theta = npyro.deterministic( 'theta', a[sub_id] + (1 - a[sub_id]
                 ) * b[sub_id] * jnp.exp(-alpha[sub_id] * t_lags))
     
-    return npyro.sample( 'recall', dist.Binomial( total_count=obs['n_items'], 
-                            probs=theta), obs=obs['recalls'])
-
+    return npyro.sample( 'recall', dist.Binomial( 
+                        args['n_items'], probs=theta), obs=obs)
 
 if __name__ == '__main__':
 
