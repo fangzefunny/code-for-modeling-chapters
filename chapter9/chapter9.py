@@ -245,6 +245,49 @@ def hMF( args, obs=None, eps=5):
     return npyro.sample( 'recall', dist.Binomial( 
                         args['n_items'], probs=theta), obs=obs)
 
+def viz_exp_pow_fns( ):
+
+    # define variables 
+    t_lags = np.linspace( 0, 40, 40)
+    alphas = np.logspace( np.log(0.1), np.log(1), 5)
+    betas  = np.logspace( np.log(0.1), np.log(1), 5)
+    trans  = np.linspace( .0, .7, 5) + .3
+
+    # define functions 
+    exp_fn = lambda t, a: np.exp( -a * t)
+    pow_fn = lambda t, b: ( 1 + t) ** (-b) 
+
+    # get data 
+    exp_data = np.vstack( [ list(map( exp_fn, t_lags, [alpha]*len(t_lags)
+                        )) for alpha in alphas])
+    pow_data = np.vstack( [ list(map( pow_fn, t_lags, [beta]*len(t_lags)
+                        )) for beta in betas])
+
+    # visualization
+    nc = 2 
+    _, axs = plt.subplots( 1, nc, figsize=( 3.5*nc, 3.5))
+    ax = axs[0]
+    for i in range(len(alphas)):
+        ax.plot( t_lags, exp_data[ i, :], color=Blue, alpha=trans[i])
+    ax.set_xlabel( 'delays', fontsize=13)
+    ax.set_ylabel( 'decay rate', fontsize=13)
+    ax.set_title( 'Exponential function', fontsize=15)
+    str_alpha = r'$\alpha$'
+    ax.legend( [ f'{str_alpha}={a:.2f}' for a in alphas])
+    ax.set_ylim( [ -.05, 1.05])
+
+    ax = axs[1]
+    for i in range(len(betas)):
+        ax.plot( t_lags, pow_data[ i, :], color=Red, alpha=trans[i])
+    ax.set_xlabel( 'delays', fontsize=13)
+    ax.set_ylabel( 'decay rate', fontsize=13)
+    ax.set_title( 'Power function', fontsize=15)
+    str_beta = r'$\beta$'
+    ax.legend( [ f'{str_beta}={b:.2f}' for b in betas])
+    ax.set_ylim( [ -.05, 1.05])
+    plt.tight_layout()
+    plt.savefig( f'{path}/hMF-exp pow fns.png', dpi=dpi)
+
 if __name__ == '__main__':
 
     ## Hierarchical signal-detection model
@@ -252,6 +295,8 @@ if __name__ == '__main__':
 
 
     ## Hierarchical modeling of forgetting
+    viz_exp_pow_fns( )
     sim_hMF()
+    
 
 
