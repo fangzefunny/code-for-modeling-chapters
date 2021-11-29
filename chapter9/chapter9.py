@@ -291,12 +291,11 @@ def viz_exp_pow_fns( ):
 if __name__ == '__main__':
 
     ## Hierarchical signal-detection model
-    #sim_hSDM()
-
+    sim_hSDM()
 
     ## Hierarchical modeling of forgetting
     viz_exp_pow_fns( )
-    #sim_hMF()
+    sim_hMF()
     
 
 
