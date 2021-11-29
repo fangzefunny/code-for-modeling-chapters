@@ -249,8 +249,8 @@ def viz_exp_pow_fns( ):
 
     # define variables 
     t_lags = np.linspace( 0, 40, 40)
-    alphas = np.logspace( np.log(0.1), np.log(1), 5)
-    betas  = np.logspace( np.log(0.1), np.log(1), 5)
+    alphas = np.logspace( np.log(1e-2), np.log(1), 5, base=np.e)
+    betas  = np.logspace( np.log(1e-2), np.log(1), 5, base=np.e)
     trans  = np.linspace( .0, .7, 5) + .3
 
     # define functions 
@@ -291,12 +291,12 @@ def viz_exp_pow_fns( ):
 if __name__ == '__main__':
 
     ## Hierarchical signal-detection model
-    sim_hSDM()
+    #sim_hSDM()
 
 
     ## Hierarchical modeling of forgetting
     viz_exp_pow_fns( )
-    sim_hMF()
+    #sim_hMF()
     
 
 
