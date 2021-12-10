@@ -130,7 +130,7 @@ def hebb_mat():
 if __name__ == '__main__':
 
     ## numerical intergration 
-    #print( hebb_model())
+    print( hebb_model())
 
     ## hebb matrix example 
     hebb_mat()
